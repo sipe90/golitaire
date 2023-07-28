@@ -1,0 +1,2 @@
+# golitaire
+Solitaire in Golang
