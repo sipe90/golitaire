@@ -24,16 +24,24 @@ type parts struct {
 }
 
 type styles struct {
-	black lipgloss.Style
-	red   lipgloss.Style
+	base          lipgloss.Style
+	black         lipgloss.Style
+	blackSelected lipgloss.Style
+	red           lipgloss.Style
+	redSelected   lipgloss.Style
+	selected      lipgloss.Style
 }
 
 const (
 	width  = 6
 	height = 5
 
-	blackColor = lipgloss.Color("15")
-	redColor   = lipgloss.Color("9")
+	blackColor         = lipgloss.Color("15")
+	selectedBlackColor = lipgloss.Color("0")
+	redColor           = lipgloss.Color("9")
+	selectedRedColor   = lipgloss.Color("9")
+	selectedColor      = lipgloss.Color("0")
+	selectedBgColor    = lipgloss.Color("7")
 )
 
 var (
@@ -51,25 +59,27 @@ var (
 			m:  " ",
 		},
 		Styles: styles{
-			black: lipgloss.NewStyle().Foreground(blackColor),
-			red:   lipgloss.NewStyle().Foreground(redColor),
+			base:          lipgloss.NewStyle(),
+			black:         lipgloss.NewStyle().Foreground(blackColor),
+			blackSelected: lipgloss.NewStyle().Foreground(selectedBlackColor).Background(selectedBgColor),
+			red:           lipgloss.NewStyle().Foreground(redColor),
+			redSelected:   lipgloss.NewStyle().Foreground(selectedRedColor).Background(selectedBgColor),
+			selected:      lipgloss.NewStyle().Foreground(selectedColor).Background(selectedBgColor),
 		},
 	}
 )
 
 type Card struct {
-	Value      string
-	Suite      string
-	IsVisible  bool
-	IsSelected bool
+	Value     string
+	Suite     string
+	IsVisible bool
 }
 
 func CreateCard(value, suite *string) Card {
 	return Card{
-		Value:      *value,
-		Suite:      *suite,
-		IsVisible:  false,
-		IsSelected: false,
+		Value:     *value,
+		Suite:     *suite,
+		IsVisible: false,
 	}
 }
 
@@ -89,30 +99,42 @@ func (c Card) String() string {
 	return c.Value + c.Suite
 }
 
-func (c Card) View(stacked bool) string {
+func (c Card) View(selected bool, hovered bool, stacked bool) string {
+	var cardStyle lipgloss.Style
 	var labelStyle lipgloss.Style
-	if c.IsBlack() {
-		labelStyle = pallet.Styles.black
+
+	if selected || hovered {
+		cardStyle = pallet.Styles.selected
+		if c.IsBlack() {
+			labelStyle = pallet.Styles.blackSelected
+		} else {
+			labelStyle = pallet.Styles.redSelected
+		}
 	} else {
-		labelStyle = pallet.Styles.red
+		cardStyle = pallet.Styles.base
+		if c.IsBlack() {
+			labelStyle = pallet.Styles.black
+		} else {
+			labelStyle = pallet.Styles.red
+		}
 	}
 
 	label := c.Value + c.Suite
 
-	var hpb strings.Builder
+	var vpb strings.Builder
 	for i := 0; i < width-2-utf8.RuneCountInString(label); i++ {
-		fmt.Fprint(&hpb, pallet.Parts.v)
+		fmt.Fprint(&vpb, pallet.Parts.v)
 	}
 
-	verticalPadding := hpb.String()
+	verticalPadding := cardStyle.Render(vpb.String())
 	labelView := labelStyle.Render(label)
 
 	var b strings.Builder
 
-	fmt.Fprint(&b, pallet.Parts.tl)
+	fmt.Fprint(&b, cardStyle.Render(pallet.Parts.tl))
 	fmt.Fprint(&b, labelView)
-	fmt.Fprint(&b, verticalPadding)
-	fmt.Fprint(&b, pallet.Parts.tr)
+	fmt.Fprint(&b, cardStyle.Render(verticalPadding))
+	fmt.Fprint(&b, cardStyle.Render(pallet.Parts.tr))
 
 	if stacked {
 		return b.String()
@@ -120,11 +142,11 @@ func (c Card) View(stacked bool) string {
 
 	var mb strings.Builder
 
-	fmt.Fprint(&mb, pallet.Parts.h)
+	fmt.Fprint(&mb, cardStyle.Render(pallet.Parts.h))
 	for i := 0; i < width-2; i++ {
-		fmt.Fprint(&mb, pallet.Parts.m)
+		fmt.Fprint(&mb, cardStyle.Render(pallet.Parts.m))
 	}
-	fmt.Fprint(&mb, pallet.Parts.h)
+	fmt.Fprint(&mb, cardStyle.Render(pallet.Parts.h))
 
 	middle := mb.String()
 
@@ -134,10 +156,10 @@ func (c Card) View(stacked bool) string {
 		fmt.Fprintln(&b)
 	}
 
-	fmt.Fprint(&b, pallet.Parts.bl)
+	fmt.Fprint(&b, cardStyle.Render(pallet.Parts.bl))
 	fmt.Fprint(&b, verticalPadding)
-	fmt.Fprint(&b, label)
-	fmt.Fprint(&b, pallet.Parts.br)
+	fmt.Fprint(&b, labelView)
+	fmt.Fprint(&b, cardStyle.Render(pallet.Parts.br))
 
 	return b.String()
 }

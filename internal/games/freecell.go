@@ -15,7 +15,7 @@ const (
 	Freecells = 4
 )
 
-type Loc struct {
+type Pos struct {
 	x int
 	y int
 }
@@ -24,11 +24,11 @@ type FreeCell struct {
 	foundations []cards.Card
 	freecells   []cards.Card
 	cascades    [][]cards.Card
-	selected    Loc
-	position    Loc
+	selected    *Pos
+	position    *Pos
 }
 
-func FreeCellGame() FreeCell {
+func FreeCellGame() *FreeCell {
 	foundations := make([]cards.Card, Suites)
 	freecells := make([]cards.Card, Freecells)
 	cascades := make([][]cards.Card, Cascades)
@@ -37,33 +37,48 @@ func FreeCellGame() FreeCell {
 		cascades[i] = []cards.Card{}
 	}
 
-	return FreeCell{
+	return &FreeCell{
 		foundations: foundations,
 		freecells:   freecells,
 		cascades:    cascades,
+		selected:    nil,
+		position:    &Pos{},
 	}
 }
 
-func (f FreeCell) Deal(number int) {
+func (f *FreeCell) Deal(number int) {
 	deck := cards.CreateDeck()
 	deck = cards.Shuffle(&deck, number)
 
 	for i := 0; i < len(deck); i++ {
 		f.cascades[i%Cascades] = append(f.cascades[i%Cascades], deck[i])
 	}
+
+	f.position.x = 0
+	f.position.y = len(f.cascades[0]) - 1
 }
 
-func (f FreeCell) Up() {}
+func (f *FreeCell) Up() {
+	f.position.y = int(math.Max(float64(f.position.y-1), -1))
+}
 
-func (f FreeCell) Down() {}
+func (f *FreeCell) Down() {
+	f.position.y = int(math.Min(float64(f.position.y+1), float64(len(f.cascades[f.position.x])-1)))
+}
 
-func (f FreeCell) Left() {}
+func (f *FreeCell) Left() {
+	f.position.x = int(math.Max(float64(f.position.x-1), 0))
+	f.position.y = int(math.Min(float64(f.position.y), float64(len(f.cascades[f.position.x])-1)))
+}
 
-func (f FreeCell) Right() {}
+func (f *FreeCell) Right() {
+	f.position.x = int(math.Min(float64(f.position.x+1), Cascades-1))
+	f.position.y = int(math.Min(float64(f.position.y), float64(len(f.cascades[f.position.x])-1)))
+}
 
-func (f FreeCell) Select() {}
+func (f *FreeCell) Select() {}
 
-func (f FreeCell) View() string {
+func (f *FreeCell) View() string {
 	top := lipgloss.JoinHorizontal(lipgloss.Top, f.viewFoundations(), "  ", f.viewFreeCells())
 	cascades := f.viewCascades()
 
@@ -72,27 +87,31 @@ func (f FreeCell) View() string {
 		lipgloss.PlaceHorizontal(80, lipgloss.Center, cascades)
 }
 
-func (f FreeCell) viewFoundations() string {
+func (f *FreeCell) viewFoundations() string {
 	foundationsView := make([]string, len(f.foundations))
 
 	for i, c := range f.foundations {
-		foundationsView[i] = c.View(false)
+		selected := f.selected != nil && f.selected.y == -1 && f.selected.x == i
+		hovered := f.position.y == -1 && f.position.x == i
+		foundationsView[i] = c.View(selected, hovered, false)
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, foundationsView...)
 }
 
-func (f FreeCell) viewFreeCells() string {
+func (f *FreeCell) viewFreeCells() string {
 	freecellsView := make([]string, len(f.freecells))
 
 	for i, c := range f.freecells {
-		freecellsView[i] = c.View(false)
+		selected := f.selected != nil && f.selected.y == -1 && f.selected.x == i+Suites
+		hovered := f.position.y == -1 && f.position.x == i+Suites
+		freecellsView[i] = c.View(selected, hovered, false)
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, freecellsView...)
 }
 
-func (f FreeCell) viewCascades() string {
+func (f *FreeCell) viewCascades() string {
 	cascadesView := make([]string, len(f.cascades))
 
 	for i, cascade := range f.cascades {
@@ -102,9 +121,11 @@ func (f FreeCell) viewCascades() string {
 		b.Grow(150)
 
 		for j, c := range cascade {
-			isTop := j == topIdx
+			selected := f.selected != nil && f.selected.y == j && f.selected.x == i
+			hovered := f.position.y == j && f.position.x == i
+			top := j == topIdx
 
-			fmt.Fprint(&b, c.View(!isTop))
+			fmt.Fprint(&b, c.View(selected, hovered, !top))
 			fmt.Fprintln(&b)
 		}
 		cascadesView[i] = b.String()
@@ -113,7 +134,7 @@ func (f FreeCell) viewCascades() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, cascadesView...)
 }
 
-func (f FreeCell) Debug() {
+func (f *FreeCell) Debug() {
 	for _, c := range f.foundations {
 		if c.IsEmpty() {
 			fmt.Printf("%4v", "X")
