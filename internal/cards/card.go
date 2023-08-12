@@ -2,16 +2,59 @@ package cards
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-const width = 6
-const height = 5
+type Pallet struct {
+	Parts  parts
+	Styles styles
+}
+
+type parts struct {
+	tl string
+	tr string
+	bl string
+	br string
+	h  string
+	v  string
+	m  string
+}
+
+type styles struct {
+	black lipgloss.Style
+	red   lipgloss.Style
+}
+
+const (
+	width  = 6
+	height = 5
+
+	blackColor = lipgloss.Color("15")
+	redColor   = lipgloss.Color("9")
+)
 
 var (
 	values = []string{"A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"}
 	suites = []string{"♣", "♦", "♥", "♠"}
+
+	pallet = Pallet{
+		Parts: parts{
+			tl: "╭",
+			tr: "╮",
+			bl: "╰",
+			br: "╯",
+			h:  "│",
+			v:  "─",
+			m:  " ",
+		},
+		Styles: styles{
+			black: lipgloss.NewStyle().Foreground(blackColor),
+			red:   lipgloss.NewStyle().Foreground(redColor),
+		},
+	}
 )
 
 type Card struct {
@@ -39,7 +82,7 @@ func (c Card) IsRed() bool {
 }
 
 func (c Card) IsBlack() bool {
-	return c.IsRed()
+	return !c.IsRed()
 }
 
 func (c Card) String() string {
@@ -47,19 +90,54 @@ func (c Card) String() string {
 }
 
 func (c Card) View(stacked bool) string {
-	label := c.Value + c.Suite
-	topFormat := "%-" + strconv.Itoa(width-2) + "s"
-	topCenter := strings.ReplaceAll(fmt.Sprintf(topFormat, label), " ", "─")
-	top := "╭" + topCenter + "╮"
-
-	if stacked {
-		return top
+	var labelStyle lipgloss.Style
+	if c.IsBlack() {
+		labelStyle = pallet.Styles.black
+	} else {
+		labelStyle = pallet.Styles.red
 	}
 
-	middle := "│" + strings.Repeat(" ", width-2) + "│"
-	bottomFormat := "%" + strconv.Itoa(width-2) + "s"
-	bottomCenter := strings.ReplaceAll(fmt.Sprintf(bottomFormat, label), " ", "─")
-	bottom := "╰" + bottomCenter + "╯"
+	label := c.Value + c.Suite
 
-	return top + "\n" + strings.Repeat(middle+"\n", height-2) + bottom
+	var hpb strings.Builder
+	for i := 0; i < width-2-utf8.RuneCountInString(label); i++ {
+		fmt.Fprint(&hpb, pallet.Parts.v)
+	}
+
+	verticalPadding := hpb.String()
+	labelView := labelStyle.Render(label)
+
+	var b strings.Builder
+
+	fmt.Fprint(&b, pallet.Parts.tl)
+	fmt.Fprint(&b, labelView)
+	fmt.Fprint(&b, verticalPadding)
+	fmt.Fprint(&b, pallet.Parts.tr)
+
+	if stacked {
+		return b.String()
+	}
+
+	var mb strings.Builder
+
+	fmt.Fprint(&mb, pallet.Parts.h)
+	for i := 0; i < width-2; i++ {
+		fmt.Fprint(&mb, pallet.Parts.m)
+	}
+	fmt.Fprint(&mb, pallet.Parts.h)
+
+	middle := mb.String()
+
+	fmt.Fprintln(&b)
+	for i := 0; i < height-2; i++ {
+		fmt.Fprint(&b, middle)
+		fmt.Fprintln(&b)
+	}
+
+	fmt.Fprint(&b, pallet.Parts.bl)
+	fmt.Fprint(&b, verticalPadding)
+	fmt.Fprint(&b, label)
+	fmt.Fprint(&b, pallet.Parts.br)
+
+	return b.String()
 }
