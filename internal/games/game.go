@@ -13,5 +13,7 @@ type Game interface {
 
 	View() string
 
+	Resize(w int, h int)
+
 	Debug()
 }

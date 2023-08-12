@@ -13,14 +13,24 @@ const (
 	Suites    = 4
 	Cascades  = 8
 	Freecells = 4
+
+	textColor = lipgloss.Color("28")
 )
 
+var textStyle = lipgloss.NewStyle().Foreground(textColor)
+
+// [y == -1] and [0 <= x < Suites] are foundations
+// [y == -1] and [Suites <= x < Freecells - 1] are freecells
+// [y >= 0] and [x >= 0] are the cascades
 type Pos struct {
 	x int
 	y int
 }
 
 type FreeCell struct {
+	width       int
+	height      int
+	number      int
 	foundations []cards.Card
 	freecells   []cards.Card
 	cascades    [][]cards.Card
@@ -47,6 +57,7 @@ func FreeCellGame() *FreeCell {
 }
 
 func (f *FreeCell) Deal(number int) {
+	f.number = number
 	deck := cards.CreateDeck()
 	deck = cards.Shuffle(&deck, number)
 
@@ -76,15 +87,41 @@ func (f *FreeCell) Right() {
 	f.position.y = int(math.Min(float64(f.position.y), float64(len(f.cascades[f.position.x])-1)))
 }
 
-func (f *FreeCell) Select() {}
+func (f *FreeCell) Select() {
+	if !f.isCurrentPositionSelectable() {
+		return
+	}
+
+	posX := f.position.x
+	posY := f.position.y
+
+	// Clear selection
+	if f.selected != nil && f.selected.x == posX && f.selected.y == posY {
+		f.selected = nil
+	} else {
+		// Select current position
+		f.selected = &Pos{
+			x: posX,
+			y: posY,
+		}
+	}
+}
 
 func (f *FreeCell) View() string {
 	top := lipgloss.JoinHorizontal(lipgloss.Top, f.viewFoundations(), "  ", f.viewFreeCells())
 	cascades := f.viewCascades()
 
-	return lipgloss.PlaceHorizontal(80, lipgloss.Center, top) +
+	gameView := textStyle.Render(fmt.Sprintf("Game #%d", f.number)) +
+		"\n\n" +
+		top +
 		"\n" +
-		lipgloss.PlaceHorizontal(80, lipgloss.Center, cascades)
+		cascades
+
+	return lipgloss.PlaceHorizontal(
+		f.width,
+		lipgloss.Center,
+		gameView,
+	)
 }
 
 func (f *FreeCell) viewFoundations() string {
@@ -118,8 +155,6 @@ func (f *FreeCell) viewCascades() string {
 		topIdx := len(cascade) - 1
 
 		var b strings.Builder
-		b.Grow(150)
-
 		for j, c := range cascade {
 			selected := f.selected != nil && f.selected.y == j && f.selected.x == i
 			hovered := f.position.y == j && f.position.x == i
@@ -132,6 +167,31 @@ func (f *FreeCell) viewCascades() string {
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, cascadesView...)
+}
+
+func (f *FreeCell) Resize(w int, h int) {
+	f.width = w
+	f.height = h
+}
+
+func (f *FreeCell) isCurrentPositionSelectable() bool {
+	posX := f.position.x
+	posY := f.position.y
+
+	// Foundations are not selectable
+	if posX < Suites && posY == -1 {
+		return false
+	}
+	// Empty freecells are not selectable
+	if posX >= Suites && posY == -1 && f.freecells[posX-Suites].IsEmpty() {
+		return false
+	}
+	// TODO: Stack selection
+	if posY < len(f.cascades[posX])-1 {
+		return false
+	}
+
+	return true
 }
 
 func (f *FreeCell) Debug() {

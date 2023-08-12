@@ -41,6 +41,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter", " ":
 			game.Select()
 		}
+	case tea.WindowSizeMsg:
+		game.Resize(msg.Width, msg.Height)
 	}
 
 	return m, nil
