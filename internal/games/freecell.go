@@ -3,7 +3,9 @@ package games
 import (
 	"fmt"
 	"math"
+	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sipe90/golitaire/internal/cards"
 )
 
@@ -60,6 +62,56 @@ func (f FreeCell) Left() {}
 func (f FreeCell) Right() {}
 
 func (f FreeCell) Select() {}
+
+func (f FreeCell) View() string {
+	top := lipgloss.JoinHorizontal(lipgloss.Top, f.viewFoundations(), "  ", f.viewFreeCells())
+	cascades := f.viewCascades()
+
+	return lipgloss.PlaceHorizontal(80, lipgloss.Center, top) +
+		"\n" +
+		lipgloss.PlaceHorizontal(80, lipgloss.Center, cascades)
+}
+
+func (f FreeCell) viewFoundations() string {
+	foundationsView := make([]string, len(f.foundations))
+
+	for i, c := range f.foundations {
+		foundationsView[i] = c.View(false)
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, foundationsView...)
+}
+
+func (f FreeCell) viewFreeCells() string {
+	freecellsView := make([]string, len(f.freecells))
+
+	for i, c := range f.freecells {
+		freecellsView[i] = c.View(false)
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, freecellsView...)
+}
+
+func (f FreeCell) viewCascades() string {
+	cascadesView := make([]string, len(f.cascades))
+
+	for i, cascade := range f.cascades {
+		topIdx := len(cascade) - 1
+
+		var b strings.Builder
+		b.Grow(150)
+
+		for j, c := range cascade {
+			isTop := j == topIdx
+
+			fmt.Fprint(&b, c.View(!isTop))
+			fmt.Fprintln(&b)
+		}
+		cascadesView[i] = b.String()
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, cascadesView...)
+}
 
 func (f FreeCell) Debug() {
 	for _, c := range f.foundations {

@@ -17,7 +17,7 @@ func CreateModel() model {
 
 func (m model) Init() tea.Cmd {
 	m.Game.Deal(617)
-	m.Game.Debug()
+	// m.Game.Debug()
 	return nil
 }
 
@@ -47,5 +47,5 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return ""
+	return m.Game.View()
 }

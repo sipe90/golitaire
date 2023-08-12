@@ -11,5 +11,7 @@ type Game interface {
 
 	Select()
 
+	View() string
+
 	Debug()
 }
