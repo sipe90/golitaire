@@ -1,12 +1,12 @@
 package cards
 
-type Deck []Card
+type Deck []*Card
 
 func CreateDeck() Deck {
-	deck := make(Deck, 0, 52)
-	for _, v := range values {
-		for _, s := range suites {
-			deck = append(deck, CreateCard(&v, &s))
+	deck := make(Deck, 0, len(values)*len(suites))
+	for v := 0; v < len(values); v++ {
+		for s := 0; s < len(suites); s++ {
+			deck = append(deck, NewCard(Value(v), Suite(s)))
 		}
 	}
 

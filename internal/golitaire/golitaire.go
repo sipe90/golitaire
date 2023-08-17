@@ -1,6 +1,8 @@
 package golitaire
 
 import (
+	// "math/rand"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sipe90/golitaire/internal/games"
 )
@@ -16,7 +18,8 @@ func CreateModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	m.Game.Deal(617)
+	// number := rand.Intn(32000)
+	m.Game.Deal(10221)
 	// m.Game.Debug()
 	return nil
 }

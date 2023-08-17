@@ -19,3 +19,6 @@
 
 # Go workspace file
 go.work
+
+# Debug log
+debug.log

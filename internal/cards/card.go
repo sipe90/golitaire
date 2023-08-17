@@ -8,6 +8,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type Suite int8
+type Value int8
+
 type Pallet struct {
 	Parts  parts
 	Styles styles
@@ -31,6 +34,16 @@ type styles struct {
 	redSelected   lipgloss.Style
 	selected      lipgloss.Style
 }
+
+const (
+	SUITE_EMPTY    Suite = -1
+	SUITE_CLUBS    Suite = 0
+	SUITE_DIAMONDS Suite = 1
+	SUITE_HEARTS   Suite = 2
+	SUITE_SPADES   Suite = 3
+
+	VALUE_EMPTY Value = -1
+)
 
 const (
 	width  = 6
@@ -70,36 +83,62 @@ var (
 )
 
 type Card struct {
-	Value     string
-	Suite     string
+	Value     Value
+	Suite     Suite
 	IsVisible bool
 }
 
-func CreateCard(value, suite *string) Card {
-	return Card{
-		Value:     *value,
-		Suite:     *suite,
+func NewCard(value Value, suite Suite) *Card {
+	return &Card{
+		Value:     value,
+		Suite:     suite,
 		IsVisible: false,
 	}
 }
 
-func (c Card) IsEmpty() bool {
-	return c.Suite == "" || c.Value == ""
+func NewEmptyCard() *Card {
+	return &Card{
+		Value:     VALUE_EMPTY,
+		Suite:     SUITE_EMPTY,
+		IsVisible: false,
+	}
 }
 
-func (c Card) IsRed() bool {
-	return c.Suite == "♦" || c.Suite == "♥"
+func (c *Card) IsFoundation() bool {
+	return c.Suite != SUITE_EMPTY && c.Value == VALUE_EMPTY
 }
 
-func (c Card) IsBlack() bool {
+func (c *Card) IsEmpty() bool {
+	return c.Suite == SUITE_EMPTY || c.Value == VALUE_EMPTY
+}
+
+func (c *Card) IsRed() bool {
+	return c.Suite == SUITE_DIAMONDS || c.Suite == SUITE_HEARTS
+}
+
+func (c *Card) IsBlack() bool {
 	return !c.IsRed()
 }
 
-func (c Card) String() string {
-	return c.Value + c.Suite
+func (c *Card) SuiteString() string {
+	if c.Suite == SUITE_EMPTY {
+		return ""
+	}
+	return suites[c.Suite]
 }
 
-func (c Card) View(selected bool, hovered bool, stacked bool) string {
+func (c *Card) ValueString() string {
+	if c.Value == VALUE_EMPTY {
+		return ""
+	}
+	return values[c.Value]
+}
+
+func (c *Card) Label() string {
+	return c.ValueString() + c.SuiteString()
+}
+
+func (c *Card) View(selected bool, hovered bool, stacked bool) string {
 	var cardStyle lipgloss.Style
 	var labelStyle lipgloss.Style
 
@@ -119,7 +158,7 @@ func (c Card) View(selected bool, hovered bool, stacked bool) string {
 		}
 	}
 
-	label := c.Value + c.Suite
+	label := c.Label()
 
 	var vpb strings.Builder
 	for i := 0; i < width-2-utf8.RuneCountInString(label); i++ {
@@ -162,4 +201,12 @@ func (c Card) View(selected bool, hovered bool, stacked bool) string {
 	fmt.Fprint(&b, cardStyle.Render(pallet.Parts.br))
 
 	return b.String()
+}
+
+func (c *Card) Equals(other *Card) bool {
+	return c.Value == other.Value && c.Suite == other.Suite
+}
+
+func (p *Card) String() string {
+	return p.Label()
 }
