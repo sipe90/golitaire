@@ -11,6 +11,7 @@ type Game interface {
 	Right()
 
 	Select()
+	Undo()
 
 	View() string
 

@@ -22,31 +22,18 @@ const (
 var textStyle = lipgloss.NewStyle().Foreground(textColor)
 
 // [y == -1] and [0 <= x < Suites] are foundations
+func IsFoundation(p *cards.Pos) bool {
+	return p.X < Suites && p.Y == -1
+}
+
 // [y == -1] and [Suites <= x < Freecells - 1] are freecells
+func IsFreeCell(p *cards.Pos) bool {
+	return p.X >= Suites && p.Y == -1
+}
+
 // [y >= 0] and [x >= 0] are the cascades
-type Pos struct {
-	x int
-	y int
-}
-
-func (p *Pos) IsFoundation() bool {
-	return p.x < Suites && p.y == -1
-}
-
-func (p *Pos) IsFreeCell() bool {
-	return p.x >= Suites && p.y == -1
-}
-
-func (p *Pos) IsCascade() bool {
-	return p.y >= 0
-}
-
-func (p *Pos) Equals(other *Pos) bool {
-	return p.x == other.x && p.y == other.y
-}
-
-func (p *Pos) String() string {
-	return fmt.Sprintf("[%d, %d]", p.x, p.y)
+func IsCascade(p *cards.Pos) bool {
+	return p.Y >= 0
 }
 
 type FreeCell struct {
@@ -56,8 +43,9 @@ type FreeCell struct {
 	foundations []*cards.Card
 	freecells   []*cards.Card
 	cascades    [][]*cards.Card
-	selected    *Pos
-	position    *Pos
+	selected    *cards.Pos
+	position    *cards.Pos
+	moves       *cards.MoveHistory
 }
 
 func FreeCellGame() *FreeCell {
@@ -70,7 +58,8 @@ func FreeCellGame() *FreeCell {
 		freecells:   freecells,
 		cascades:    cascades,
 		selected:    nil,
-		position:    &Pos{},
+		position:    &cards.Pos{},
+		moves:       &cards.MoveHistory{},
 	}
 }
 
@@ -96,8 +85,10 @@ func (f *FreeCell) Deal(number int) {
 		f.cascades[i%Cascades][i/Cascades] = deck[i]
 	}
 
-	f.position.x = 0
-	f.position.y = 6
+	f.position.X = 0
+	f.position.Y = 6
+
+	log.Printf("Dealt game #%v", f.number)
 }
 
 func (f *FreeCell) Redeal() {
@@ -105,33 +96,33 @@ func (f *FreeCell) Redeal() {
 }
 
 func (f *FreeCell) Up() {
-	f.position.y = int(math.Max(float64(f.position.y-1), -1))
+	f.position.Y = int(math.Max(float64(f.position.Y-1), -1))
 }
 
 func (f *FreeCell) Down() {
-	f.position.y = int(math.Min(float64(f.position.y+1), float64(f.getTopIndex(f.position.x))))
+	f.position.Y = int(math.Min(float64(f.position.Y+1), float64(f.getTopIndex(f.position.X))))
 }
 
 func (f *FreeCell) Left() {
-	f.position.x = int(math.Max(float64(f.position.x-1), 0))
-	f.position.y = int(math.Min(float64(f.position.y), float64(f.getTopIndex(f.position.x))))
+	f.position.X = int(math.Max(float64(f.position.X-1), 0))
+	f.position.Y = int(math.Min(float64(f.position.Y), float64(f.getTopIndex(f.position.X))))
 }
 
 func (f *FreeCell) Right() {
-	f.position.x = int(math.Min(float64(f.position.x+1), Cascades-1))
-	f.position.y = int(math.Min(float64(f.position.y), float64(f.getTopIndex(f.position.x))))
+	f.position.X = int(math.Min(float64(f.position.X+1), Cascades-1))
+	f.position.Y = int(math.Min(float64(f.position.Y), float64(f.getTopIndex(f.position.X))))
 }
 
 func (f *FreeCell) Select() {
-	posX := f.position.x
-	posY := f.position.y
+	posX := f.position.X
+	posY := f.position.Y
 
 	// Select current position
 	if f.selected == nil {
 		if f.isCurrentPositionSelectable() {
-			f.selected = &Pos{
-				x: posX,
-				y: posY,
+			f.selected = &cards.Pos{
+				X: posX,
+				Y: posY,
 			}
 			log.Printf("Selected: %v", f.selected)
 		}
@@ -148,6 +139,13 @@ func (f *FreeCell) Select() {
 	f.tryMoveCard(f.selected, f.position)
 }
 
+func (f *FreeCell) Undo() {
+	if f.moves.Size() > 0 {
+		move := f.moves.Pop()
+		f.moveCard(&move.To, &move.From)
+	}
+}
+
 func (f *FreeCell) getTopIndex(index int) int {
 	cascade := f.cascades[index]
 	for i := len(cascade) - 1; i >= 0; i-- {
@@ -158,77 +156,82 @@ func (f *FreeCell) getTopIndex(index int) int {
 	return 0
 }
 
-func (f *FreeCell) getCard(pos *Pos) *cards.Card {
-	if pos.IsFoundation() {
-		return f.foundations[pos.x]
+func (f *FreeCell) getCard(pos *cards.Pos) *cards.Card {
+	if IsFoundation(pos) {
+		return f.foundations[pos.X]
 	}
-	if pos.IsFreeCell() {
-		return f.freecells[pos.x-Suites]
+	if IsFreeCell(pos) {
+		return f.freecells[pos.X-Suites]
 	}
-	return f.cascades[pos.x][pos.y]
+	return f.cascades[pos.X][pos.Y]
 }
 
-func (f *FreeCell) tryMoveCard(from, to *Pos) {
-	if f.canMoveCard(from, to) {
+func (f *FreeCell) tryMoveCard(from, onto *cards.Pos) {
+	if f.canMoveCard(from, onto) {
+		var to *cards.Pos
+		if IsCascade(onto) {
+			to = onto.Add(0, 1)
+		} else {
+			to = onto
+		}
+
 		f.moveCard(from, to)
+		f.moves.Push(&cards.Move{From: *from, To: *to})
+		log.Printf("Moves: %v", f.moves)
 	}
 }
 
-func (f *FreeCell) canMoveCard(from, to *Pos) bool {
+func (f *FreeCell) canMoveCard(from, onto *cards.Pos) bool {
 	// Can't move onto itself
-	if from.Equals(to) {
+	if from.Equals(onto) {
 		return false
 	}
 	// Can't remove cards from foundations
-	if from.IsFoundation() {
+	if IsFoundation(from) {
 		return false
 	}
 	fromCard := f.getCard(from)
-	toCard := f.getCard(to)
+	toCard := f.getCard(onto)
 	// From freecell/cascade to another freecell
-	if to.IsFreeCell() {
+	if IsFreeCell(onto) {
 		return toCard.IsEmpty()
 	}
 	// From freecell/cascade to foundation
-	if to.IsFoundation() {
+	if IsFoundation(onto) {
 		return cards.CanPlaceOnFoundation(fromCard, toCard)
 	}
 	// From freecell/cascade to cascade
 	return toCard.IsEmpty() || cards.CanStack(cards.ALT_COLOR_DESC, fromCard, toCard)
 }
 
-func (f *FreeCell) moveCard(from, to *Pos) {
-	if from.IsFoundation() {
-		return
-	}
-
+func (f *FreeCell) moveCard(from, to *cards.Pos) {
 	f.selected = nil
 
 	card := f.getCard(from)
 
 	log.Printf("Moving card %v from %v to %v", card, from, to)
 
-	if to.IsFoundation() {
-		f.foundations[to.x] = card
-	} else if to.IsFreeCell() {
-		f.freecells[to.x-Suites] = card
+	if IsFoundation(to) {
+		f.foundations[to.X] = card
+	} else if IsFreeCell(to) {
+		f.freecells[to.X-Suites] = card
 	} else {
-		toCard := f.getCard(to)
-		if to.y == 0 && toCard.IsEmpty() {
-			f.cascades[to.x][to.y] = card
-		} else {
-			f.cascades[to.x][to.y+1] = card
-			f.position.y++
-		}
+		f.cascades[to.X][to.Y] = card
 	}
 
-	if from.IsFreeCell() {
-		f.freecells[from.x-Suites] = cards.NewEmptyCard()
-	} else {
-		if from.y == 0 {
-			f.cascades[from.x][from.y] = cards.NewEmptyCard()
+	if IsFreeCell(from) {
+		f.freecells[from.X-Suites] = cards.NewEmptyCard()
+	} else if IsFoundation(from) {
+		if card.Value == 0 {
+			f.foundations[from.X] = cards.NewCard(cards.VALUE_EMPTY, card.Suite)
 		} else {
-			f.cascades[from.x][from.y] = nil
+			f.foundations[from.X] = cards.NewCard(card.Value-1, card.Suite)
+		}
+	} else {
+		if from.Y == 0 {
+			f.cascades[from.X][from.Y] = cards.NewEmptyCard()
+		} else {
+			f.cascades[from.X][from.Y] = nil
 		}
 	}
 }
@@ -254,8 +257,8 @@ func (f *FreeCell) viewFoundations() string {
 	foundationsView := make([]string, len(f.foundations))
 
 	for i, c := range f.foundations {
-		selected := f.selected != nil && f.selected.y == -1 && f.selected.x == i
-		hovered := f.position.y == -1 && f.position.x == i
+		selected := f.selected != nil && f.selected.Y == -1 && f.selected.X == i
+		hovered := f.position.Y == -1 && f.position.X == i
 		foundationsView[i] = c.View(selected, hovered, false)
 	}
 
@@ -266,8 +269,8 @@ func (f *FreeCell) viewFreeCells() string {
 	freecellsView := make([]string, len(f.freecells))
 
 	for i, c := range f.freecells {
-		selected := f.selected != nil && f.selected.y == -1 && f.selected.x == i+Suites
-		hovered := f.position.y == -1 && f.position.x == i+Suites
+		selected := f.selected != nil && f.selected.Y == -1 && f.selected.X == i+Suites
+		hovered := f.position.Y == -1 && f.position.X == i+Suites
 		freecellsView[i] = c.View(selected, hovered, false)
 	}
 
@@ -283,8 +286,8 @@ func (f *FreeCell) viewCascades() string {
 			if c == nil {
 				break
 			}
-			selected := f.selected != nil && f.selected.y == j && f.selected.x == i
-			hovered := f.position.y == j && f.position.x == i
+			selected := f.selected != nil && f.selected.Y == j && f.selected.X == i
+			hovered := f.position.Y == j && f.position.X == i
 			top := j == len(cascade)-1 || cascade[j+1] == nil
 
 			fmt.Fprint(&b, c.View(selected, hovered, !top))
@@ -302,18 +305,18 @@ func (f *FreeCell) Resize(w int, h int) {
 }
 
 func (f *FreeCell) isCurrentPositionSelectable() bool {
-	posX := f.position.x
-	posY := f.position.y
+	posX := f.position.X
+	posY := f.position.Y
 
 	// Foundations are not selectable
-	if f.position.IsFoundation() {
+	if IsFoundation(f.position) {
 		return false
 	}
 
 	card := f.getCard(f.position)
 
 	// Empty freecells are not selectable
-	if f.position.IsFreeCell() {
+	if IsFreeCell(f.position) {
 		return !card.IsEmpty()
 	}
 
