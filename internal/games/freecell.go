@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	Suites    = 4
-	Cascades  = 8
-	Freecells = 4
+	Suites           = 4
+	Cascades         = 8
+	Freecells        = 4
+	MaxCascadeLength = 21
 
 	textColor = lipgloss.Color("28")
 )
@@ -64,18 +65,6 @@ func FreeCellGame() *FreeCell {
 	freecells := make([]*cards.Card, Freecells)
 	cascades := make([][]*cards.Card, Cascades)
 
-	for i := 0; i < len(foundations); i++ {
-		foundations[i] = cards.NewCard(cards.VALUE_EMPTY, cards.Suite(i))
-	}
-
-	for i := 0; i < len(freecells); i++ {
-		freecells[i] = cards.NewCard(cards.VALUE_EMPTY, cards.SUITE_EMPTY)
-	}
-
-	for i := 0; i < len(cascades); i++ {
-		cascades[i] = make([]*cards.Card, 21)
-	}
-
 	return &FreeCell{
 		foundations: foundations,
 		freecells:   freecells,
@@ -87,6 +76,19 @@ func FreeCellGame() *FreeCell {
 
 func (f *FreeCell) Deal(number int) {
 	f.number = number
+
+	for i := 0; i < len(f.foundations); i++ {
+		f.foundations[i] = cards.NewCard(cards.VALUE_EMPTY, cards.Suite(i))
+	}
+
+	for i := 0; i < len(f.freecells); i++ {
+		f.freecells[i] = cards.NewCard(cards.VALUE_EMPTY, cards.SUITE_EMPTY)
+	}
+
+	for i := 0; i < len(f.cascades); i++ {
+		f.cascades[i] = make([]*cards.Card, MaxCascadeLength)
+	}
+
 	deck := cards.CreateDeck()
 	deck = cards.Shuffle(&deck, number)
 
@@ -96,6 +98,10 @@ func (f *FreeCell) Deal(number int) {
 
 	f.position.x = 0
 	f.position.y = 6
+}
+
+func (f *FreeCell) Redeal() {
+	f.Deal(f.number)
 }
 
 func (f *FreeCell) Up() {

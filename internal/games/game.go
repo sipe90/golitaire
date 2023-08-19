@@ -2,6 +2,7 @@ package games
 
 type Game interface {
 	Deal(number int)
+	Redeal()
 
 	// Navigation
 	Up()
